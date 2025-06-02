@@ -28,4 +28,4 @@ jobs:
           ULTRAMSG_INSTANCE: ${{ secrets.ULTRAMSG_INSTANCE }}
           ULTRAMSG_TOKEN: ${{ secrets.ULTRAMSG_TOKEN }}
           WA_PHONE: ${{ secrets.WA_PHONE }}
-        run: node post-to-blogger.js
+        run: node post.js
