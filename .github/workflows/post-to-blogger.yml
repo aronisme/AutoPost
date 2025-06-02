@@ -1,23 +1,26 @@
 name: Post to Blogger
 
 on:
-  workflow_dispatch:   # Bisa manual trigger
+  workflow_dispatch:  # Manual trigger
   schedule:
-    - cron: '0 * * * *'  # Setiap jam, misal
+    - cron: '0 */4 * * *'  # Run every 4 hours to avoid overlap with rate-limited posts
 
 jobs:
   post:
     runs-on: ubuntu-latest
+    timeout-minutes: 60  # Set a timeout to prevent hung jobs
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4  # Updated to latest version
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4  # Updated to latest version
         with:
-          node-version: '18'
+          node-version: '18'  # Consistent with your choice
+          cache: 'npm'  # Cache node_modules for faster runs
 
       - name: Install dependencies
-        run: npm install googleapis axios moment-timezone
+        run: npm install googleapis axios date-fns-tz bottleneck
 
       - name: Run Blogger Post Script
         env:
@@ -28,4 +31,4 @@ jobs:
           ULTRAMSG_INSTANCE: ${{ secrets.ULTRAMSG_INSTANCE }}
           ULTRAMSG_TOKEN: ${{ secrets.ULTRAMSG_TOKEN }}
           WA_PHONE: ${{ secrets.WA_PHONE }}
-        run: node post.js
+        run: node post.js  # Corrected file name
