@@ -8,7 +8,8 @@
   },
   "dependencies": {
     "googleapis": "^105.0.0",
-    "axios": "^1.7.2",
-    "moment-timezone": "^0.5.45"
+   "axios": "^1.7.7",
+    "date-fns-tz": "^3.2.0",
+    "bottleneck": "^2.19.5"
   }
 }
