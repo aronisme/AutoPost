@@ -1,15 +1,14 @@
 {
-  "name": "blogger-auto-post",
+  "name": "blogger-post",
   "version": "1.0.0",
-  "description": "Auto-post to Blogger via GitHub Actions",
+  "description": "Automate posting to Blogger with GitHub Actions",
   "main": "post.js",
   "scripts": {
     "start": "node post.js"
   },
   "dependencies": {
-    "googleapis": "^105.0.0",
-   "axios": "^1.7.7",
-    "date-fns-tz": "^3.2.0",
-    "bottleneck": "^2.19.5"
+    "axios": "^1.7.7",
+    "googleapis": "^144.0.0",
+    "moment-timezone": "^0.5.45"
   }
 }
