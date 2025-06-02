@@ -1,0 +1,12 @@
+{
+  "name": "blogger-auto-post",
+  "version": "1.0.0",
+  "description": "Auto-post to Blogger via GitHub Actions",
+  "main": "post.js",
+  "scripts": {
+    "start": "node post.js"
+  },
+  "dependencies": {
+    "googleapis": "^105.0.0"
+  }
+}
