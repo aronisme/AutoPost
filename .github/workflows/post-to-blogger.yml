@@ -1,26 +1,23 @@
-name: Post to Blogger
+nama file kode tadi kan post.js maka : name: Post to Blogger
 
 on:
-  workflow_dispatch:  # Manual trigger
+  workflow_dispatch:   # Bisa manual trigger
   schedule:
-    - cron: '0 */4 * * *'  # Run every 4 hours to avoid overlap with rate-limited posts
+    - cron: '0 * * * *'  # Setiap jam, misal
 
 jobs:
   post:
     runs-on: ubuntu-latest
-    timeout-minutes: 60  # Set a timeout to prevent hung jobs
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4  # Updated to latest version
+      - uses: actions/checkout@v3
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4  # Updated to latest version
+        uses: actions/setup-node@v3
         with:
-          node-version: '18'  # Consistent with your choice
-          cache: 'npm'  # Cache node_modules for faster runs
+          node-version: '18'
 
       - name: Install dependencies
-        run: npm install googleapis axios date-fns-tz bottleneck
+        run: npm install googleapis axios moment-timezone
 
       - name: Run Blogger Post Script
         env:
@@ -31,4 +28,4 @@ jobs:
           ULTRAMSG_INSTANCE: ${{ secrets.ULTRAMSG_INSTANCE }}
           ULTRAMSG_TOKEN: ${{ secrets.ULTRAMSG_TOKEN }}
           WA_PHONE: ${{ secrets.WA_PHONE }}
-        run: node post.js  # Corrected file name
+        run: node post.js
