@@ -17,7 +17,8 @@ const RATE_LIMIT = {
   MAX_RETRIES: 5,
   BASE_DELAY: 10000, // 10 seconds
   QUOTA_DELAY: 3600000, // 1 hour
-  MAX_POSTS_PER_HOUR: 50
+  MAX_POSTS_PER_HOUR: 50,
+  DAILY_LIMIT: 100 // Blogger's daily limit
 };
 
 // Initialize rate limiter
@@ -190,6 +191,21 @@ async function fetchExistingTitles() {
   return allTitles;
 }
 
+// Enhanced rate limit detection
+function isRateLimitError(error) {
+  return error.code === 429 ||
+    error.code === 403 ||
+    error.message.includes('quotaExceeded') ||
+    error.message.includes('Daily Limit Exceeded') ||
+    error.message.includes('User Rate Limit Exceeded') ||
+    error.message.includes('too many requests') ||
+    (error.errors && error.errors.some(e => 
+      e.reason === 'rateLimitExceeded' || 
+      e.reason === 'userRateLimitExceeded' ||
+      e.reason === 'dailyLimitExceeded'
+    ));
+}
+
 // Post to Blogger with retry logic and enhanced rate limit detection
 async function postToBloggerWithRetry(postData, postedIds, existingTitles, attempt = 1) {
   try {
@@ -218,30 +234,22 @@ async function postToBloggerWithRetry(postData, postedIds, existingTitles, attem
       errors: error.errors || []
     });
 
-    // Check for rate limit errors
-    const isRateLimitError =
-      error.code === 429 ||
-      error.code === 403 ||
-      error.message.includes('quotaExceeded') ||
-      error.message.includes('Daily Limit Exceeded') ||
-      error.message.includes('User Rate Limit Exceeded') ||
-      error.message.includes('too many requests') ||
-      (error.errors && error.errors.some(e => e.reason === 'rateLimitExceeded' || e.reason === 'userRateLimitExceeded'));
+    if (isRateLimitError(error)) {
+      const isDailyLimit = error.message.includes('Daily Limit Exceeded') || 
+                         (error.errors && error.errors.some(e => e.reason === 'dailyLimitExceeded'));
+      
+      if (isDailyLimit) {
+        throw new Error(`DAILY_LIMIT_EXCEEDED: ${error.message}`);
+      }
 
-    if (isRateLimitError && attempt < RATE_LIMIT.MAX_RETRIES) {
-      const wait = error.message.includes('quotaExceeded') || error.code === 403
-        ? RATE_LIMIT.QUOTA_DELAY
-        : error.code === 429
-        ? 60000
-        : RATE_LIMIT.BASE_DELAY * Math.pow(2, attempt - 1);
-      console.log(`🔁 Retrying attempt ${attempt} after waiting ${wait / 1000}s (${error.message})`);
-      await new Promise(resolve => setTimeout(resolve, wait));
-      return postToBloggerWithRetry(postData, postedIds, existingTitles, attempt + 1);
-    }
-
-    // Throw specific error for rate limit exhaustion
-    if (isRateLimitError) {
-      throw new Error(`Rate limit exceeded after ${attempt} attempts: ${error.message} (code: ${error.code})`);
+      if (attempt < RATE_LIMIT.MAX_RETRIES) {
+        const wait = isDailyLimit ? RATE_LIMIT.QUOTA_DELAY :
+                  error.code === 429 ? 60000 :
+                  RATE_LIMIT.BASE_DELAY * Math.pow(2, attempt - 1);
+        console.log(`🔁 Retrying attempt ${attempt} after waiting ${wait / 1000}s (${error.message})`);
+        await new Promise(resolve => setTimeout(resolve, wait));
+        return postToBloggerWithRetry(postData, postedIds, existingTitles, attempt + 1);
+      }
     }
 
     throw error;
@@ -275,8 +283,11 @@ async function postToBlogger() {
   console.log(`Total posts: ${postsData.length}, Already posted: ${postedIds.size}, Existing titles: ${existingTitles.size}`);
 
   let postCountSinceLastSave = 0;
+  let dailyLimitReached = false;
 
   for (let i = progress.lastProcessed + 1; i < postsData.length; i++) {
+    if (dailyLimitReached) break;
+
     const post = postsData[i];
     console.log(`\n📝 (${i + 1}/${postsData.length}) ${post.title.substring(0, 50)}...`);
 
@@ -301,10 +312,17 @@ async function postToBlogger() {
         error: error.message
       });
       await saveJsonFile(PROGRESS_FILE, progress);
+
+      if (error.message.includes('DAILY_LIMIT_EXCEEDED')) {
+        dailyLimitReached = true;
+        console.error('🚫 DAILY LIMIT REACHED, terminating program.');
+        await sendWhatsAppMessage(`🚫 DAILY LIMIT REACHED at post ${i} (${post.title})`);
+        break;
+      }
+
       await sendWhatsAppMessage(`❌ Error posting index ${i} (${post.title}):\n${error.message}`);
 
-      // Check if error is due to rate limit
-      if (error.message.includes('Rate limit exceeded')) {
+      if (isRateLimitError(error)) {
         console.error('🚫 Rate limit reached, terminating program.');
         const successCount = progress.lastProcessed + 1 - progress.failed.length;
         await generateReport(successCount, progress.failed, `Terminated due to rate limit: ${error.message}`);
@@ -317,7 +335,7 @@ async function postToBlogger() {
     if (postedIds.size >= 40 && postedIds.size < 45) delay = 30000;
     else if (postedIds.size >= 45) delay = 33000;
 
-    if (i < postsData.length - 1) {
+    if (i < postsData.length - 1 && !dailyLimitReached) {
       console.log(`⏳ Waiting ${delay / 1000} seconds...`);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
@@ -339,10 +357,11 @@ async function postToBlogger() {
   }
 
   const endTime = format(utcToZonedTime(new Date(), 'Asia/Jakarta'), 'yyyy-MM-dd HH:mm:ss');
-  await generateReport(successCount, progress.failed, 'Completed normally');
-  await sendWhatsAppMessage(`🎉 Finished at ${endTime} WIB\n✅ Success: ${successCount}\n❌ Failed: ${progress.failed.length}`);
+  const terminationReason = dailyLimitReached ? 'Terminated due to daily limit reached' : 'Completed normally';
+  await generateReport(successCount, progress.failed, terminationReason);
+  await sendWhatsAppMessage(`🎉 Finished at ${endTime} WIB\nStatus: ${terminationReason}\n✅ Success: ${successCount}\n❌ Failed: ${progress.failed.length}`);
 
-  process.exit(0);
+  process.exit(dailyLimitReached ? 2 : 0);
 }
 
 // Run the script
