@@ -7,6 +7,8 @@
     "start": "node post.js"
   },
   "dependencies": {
-    "googleapis": "^105.0.0"
+    "googleapis": "^105.0.0",
+    "axios": "^1.7.2",
+    "moment-timezone": "^0.5.45"
   }
 }
