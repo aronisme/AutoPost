@@ -113,6 +113,35 @@ async function sendWhatsAppMessage(message) {
   }
 }
 
+// Generate a detailed report
+async function generateReport(successCount, failedPosts, terminationReason) {
+  const report = {
+    timestamp: format(utcToZonedTime(new Date(), 'Asia/Jakarta'), 'yyyy-MM-dd HH:mm:ss'),
+    terminationReason: terminationReason || 'Completed normally',
+    totalPostsAttempted: successCount + failedPosts.length,
+    successfulPosts: successCount,
+    failedPosts: failedPosts,
+    postedIdsCount: (await loadPostedIds()).size,
+    existingTitlesCount: (await loadJsonFile(EXISTING_TITLES_FILE, [])).length
+  };
+
+  const reportPath = path.join(WORKDIR, `report_${Date.now()}.json`);
+  await saveJsonFile(reportPath, report);
+  console.log(`📊 Report generated at ${reportPath}`);
+
+  // Send WhatsApp notification with report summary
+  const message = `📊 Job Report (${report.timestamp} WIB)\n` +
+                  `Status: ${report.terminationReason}\n` +
+                  `Total Attempted: ${report.totalPostsAttempted}\n` +
+                  `Successful: ${report.successfulPosts}\n` +
+                  `Failed: ${report.failedPosts.length}\n` +
+                  `Posted IDs: ${report.postedIdsCount}\n` +
+                  `Existing Titles: ${report.existingTitlesCount}`;
+  await sendWhatsAppMessage(message);
+
+  return reportPath;
+}
+
 // Load posted IDs
 async function loadPostedIds() {
   return new Set(await loadJsonFile(POSTED_IDS_FILE, []));
@@ -191,6 +220,10 @@ async function postToBloggerWithRetry(postData, postedIds, existingTitles, attem
       await new Promise(resolve => setTimeout(resolve, wait));
       return postToBloggerWithRetry(postData, postedIds, existingTitles, attempt + 1);
     }
+    // Throw specific error for rate limit exhaustion
+    if (msg.includes('quotaExceeded') || msg.includes('429')) {
+      throw new Error(`Rate limit exceeded after ${attempt} attempts: ${msg}`);
+    }
     throw error;
   }
 }
@@ -249,6 +282,14 @@ async function postToBlogger() {
       });
       await saveJsonFile(PROGRESS_FILE, progress);
       await sendWhatsAppMessage(`❌ Error posting index ${i} (${post.title}):\n${error.message}`);
+
+      // Check if error is due to rate limit
+      if (error.message.includes('Rate limit exceeded')) {
+        console.error('🚫 Rate limit reached, terminating program.');
+        const successCount = progress.lastProcessed + 1 - progress.failed.length;
+        await generateReport(successCount, progress.failed, 'Terminated due to rate limit');
+        process.exit(1);
+      }
     }
 
     // Dynamic delay based on post count
@@ -278,13 +319,17 @@ async function postToBlogger() {
   }
 
   const endTime = format(utcToZonedTime(new Date(), 'Asia/Jakarta'), 'yyyy-MM-dd HH:mm:ss');
+  await generateReport(successCount, progress.failed, 'Completed normally');
   await sendWhatsAppMessage(`🎉 Finished at ${endTime} WIB\n✅ Success: ${successCount}\n❌ Failed: ${progress.failed.length}`);
 
   process.exit(0);
 }
 
 // Run the script
-postToBlogger().catch(err => {
+postToBlogger().catch(async err => {
   console.error('❌ Fatal error:', err.message);
+  const progress = await loadJsonFile(PROGRESS_FILE, { lastProcessed: -1, failed: [] });
+  const successCount = progress.lastProcessed + 1 - progress.failed.length;
+  await generateReport(successCount, progress.failed, `Fatal error: ${err.message}`);
   process.exit(1);
 });
