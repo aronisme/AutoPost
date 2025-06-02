@@ -190,7 +190,7 @@ async function fetchExistingTitles() {
   return allTitles;
 }
 
-// Post to Blogger with retry logic
+// Post to Blogger with retry logic and enhanced rate limit detection
 async function postToBloggerWithRetry(postData, postedIds, existingTitles, attempt = 1) {
   try {
     if (postedIds.has(postData.title) || existingTitles.has(postData.title)) {
@@ -211,19 +211,39 @@ async function postToBloggerWithRetry(postData, postedIds, existingTitles, attem
     await saveJsonFile(EXISTING_TITLES_FILE, [...existingTitles]);
     return { success: true, data: res.data };
   } catch (error) {
-    const msg = error?.message || '';
-    if ((msg.includes('ECONNRESET') || msg.includes('quotaExceeded') || msg.includes('429')) && attempt < RATE_LIMIT.MAX_RETRIES) {
-      const wait = msg.includes('quotaExceeded') ? RATE_LIMIT.QUOTA_DELAY :
-                   msg.includes('429') ? 60000 :
-                   RATE_LIMIT.BASE_DELAY * Math.pow(2, attempt - 1);
-      console.log(`🔁 Retrying attempt ${attempt} after waiting ${wait / 1000}s (${msg})`);
+    // Log full error for debugging
+    console.error('⚠️ Error details:', {
+      message: error.message,
+      code: error.code,
+      errors: error.errors || []
+    });
+
+    // Check for rate limit errors
+    const isRateLimitError =
+      error.code === 429 ||
+      error.code === 403 ||
+      error.message.includes('quotaExceeded') ||
+      error.message.includes('Daily Limit Exceeded') ||
+      error.message.includes('User Rate Limit Exceeded') ||
+      error.message.includes('too many requests') ||
+      (error.errors && error.errors.some(e => e.reason === 'rateLimitExceeded' || e.reason === 'userRateLimitExceeded'));
+
+    if (isRateLimitError && attempt < RATE_LIMIT.MAX_RETRIES) {
+      const wait = error.message.includes('quotaExceeded') || error.code === 403
+        ? RATE_LIMIT.QUOTA_DELAY
+        : error.code === 429
+        ? 60000
+        : RATE_LIMIT.BASE_DELAY * Math.pow(2, attempt - 1);
+      console.log(`🔁 Retrying attempt ${attempt} after waiting ${wait / 1000}s (${error.message})`);
       await new Promise(resolve => setTimeout(resolve, wait));
       return postToBloggerWithRetry(postData, postedIds, existingTitles, attempt + 1);
     }
+
     // Throw specific error for rate limit exhaustion
-    if (msg.includes('quotaExceeded') || msg.includes('429')) {
-      throw new Error(`Rate limit exceeded after ${attempt} attempts: ${msg}`);
+    if (isRateLimitError) {
+      throw new Error(`Rate limit exceeded after ${attempt} attempts: ${error.message} (code: ${error.code})`);
     }
+
     throw error;
   }
 }
@@ -287,7 +307,7 @@ async function postToBlogger() {
       if (error.message.includes('Rate limit exceeded')) {
         console.error('🚫 Rate limit reached, terminating program.');
         const successCount = progress.lastProcessed + 1 - progress.failed.length;
-        await generateReport(successCount, progress.failed, 'Terminated due to rate limit');
+        await generateReport(successCount, progress.failed, `Terminated due to rate limit: ${error.message}`);
         process.exit(1);
       }
     }
@@ -327,9 +347,9 @@ async function postToBlogger() {
 
 // Run the script
 postToBlogger().catch(async err => {
-  console.error('❌ Fatal error:', err.message);
+  console.error('❌ Fatal error:', err.message, { code: err.code, errors: err.errors });
   const progress = await loadJsonFile(PROGRESS_FILE, { lastProcessed: -1, failed: [] });
   const successCount = progress.lastProcessed + 1 - progress.failed.length;
-  await generateReport(successCount, progress.failed, `Fatal error: ${err.message}`);
+  await generateReport(successCount, progress.failed, `Fatal error: ${err.message} (code: ${err.code})`);
   process.exit(1);
 });
