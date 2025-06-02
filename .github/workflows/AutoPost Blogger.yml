@@ -1,7 +1,11 @@
 name: AutoPost Blogger
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # Untuk trigger manual
+  schedule:
+    - cron: '0 17 * * *' # Jam 17:00 UTC (00:00 WIB)
+    - cron: '0 18 * * *' # Jam 18:00 UTC (01:00 WIB)
+    - cron: '0 19 * * *' # Jam 19:00 UTC (02:00 WIB - waktu yang Anda mau)
 
 jobs:
   autopost:
@@ -13,9 +17,10 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: 18
+          cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Run autopost script
         env:
@@ -26,4 +31,16 @@ jobs:
           ULTRAMSG_INSTANCE: ${{ secrets.ULTRAMSG_INSTANCE }}
           ULTRAMSG_TOKEN: ${{ secrets.ULTRAMSG_TOKEN }}
           WA_PHONE: ${{ secrets.WA_PHONE }}
-        run: node post.js
+        run: |
+          echo "🕒 Job started at $(TZ='Asia/Jakarta' date)"
+          node post.js
+          echo "✅ Job completed at $(TZ='Asia/Jakarta' date)"
+          
+      - name: Upload report
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: blogger-reports
+          path: |
+            report_*.json
+            failed_posts.json
