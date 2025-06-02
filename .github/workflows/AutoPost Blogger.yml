@@ -1,0 +1,29 @@
+name: AutoPost Blogger
+
+on:
+  workflow_dispatch:
+
+jobs:
+  autopost:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run autopost script
+        env:
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
+          BLOG_ID: ${{ secrets.BLOG_ID }}
+          ULTRAMSG_INSTANCE: ${{ secrets.ULTRAMSG_INSTANCE }}
+          ULTRAMSG_TOKEN: ${{ secrets.ULTRAMSG_TOKEN }}
+          WA_PHONE: ${{ secrets.WA_PHONE }}
+        run: node post.js
