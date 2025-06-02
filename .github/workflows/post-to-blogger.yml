@@ -1,0 +1,31 @@
+name: Post to Blogger
+
+on:
+  workflow_dispatch:   # Bisa manual trigger
+  schedule:
+    - cron: '0 * * * *'  # Setiap jam, misal
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install googleapis axios moment-timezone
+
+      - name: Run Blogger Post Script
+        env:
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
+          BLOG_ID: ${{ secrets.BLOG_ID }}
+          ULTRAMSG_INSTANCE: ${{ secrets.ULTRAMSG_INSTANCE }}
+          ULTRAMSG_TOKEN: ${{ secrets.ULTRAMSG_TOKEN }}
+          WA_PHONE: ${{ secrets.WA_PHONE }}
+        run: node post-to-blogger.js
