@@ -1,12 +1,13 @@
 name: AutoPost Blogger
 
 on:
-  workflow_dispatch: # Untuk trigger manual
+  workflow_dispatch:
   schedule:
-    - cron: '2 3 * * *' # 💡 Ganti jam sesuai test UTC (misal 2 menit dari sekarang = 03:02 UTC)
-    - cron: '0 17 * * *' # Jam 17:00 UTC (00:00 WIB)
-    - cron: '0 18 * * *' # Jam 18:00 UTC (01:00 WIB)
-    - cron: '0 19 * * *' # Jam 19:00 UTC (02:00 WIB - waktu yang Anda mau)
+    - cron: '58 9 * * *' # 🔁 Test 2 menit dari 16:55 WIB (09:57 UTC)
+    - cron: '0 17 * * *' # 00:00 WIB
+    - cron: '0 18 * * *' # 01:00 WIB
+    - cron: '0 19 * * *' # 02:00 WIB
+
 
 jobs:
   autopost:
