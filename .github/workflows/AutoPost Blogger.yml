@@ -3,6 +3,7 @@ name: AutoPost Blogger
 on:
   workflow_dispatch: # Untuk trigger manual
   schedule:
+    - cron: '2 3 * * *' # 💡 Ganti jam sesuai test UTC (misal 2 menit dari sekarang = 03:02 UTC)
     - cron: '0 17 * * *' # Jam 17:00 UTC (00:00 WIB)
     - cron: '0 18 * * *' # Jam 18:00 UTC (01:00 WIB)
     - cron: '0 19 * * *' # Jam 19:00 UTC (02:00 WIB - waktu yang Anda mau)
@@ -10,6 +11,7 @@ on:
 jobs:
   autopost:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v3
 
@@ -35,9 +37,9 @@ jobs:
           echo "🕒 Job started at $(TZ='Asia/Jakarta' date)"
           node post.js
           echo "✅ Job completed at $(TZ='Asia/Jakarta' date)"
-          
+
       - name: Upload report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4 # 🔄 Versi diperbaiki
         if: always()
         with:
           name: blogger-reports
