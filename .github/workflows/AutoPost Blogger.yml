@@ -3,7 +3,7 @@ name: AutoPost Blogger
 on:
   schedule:
     - cron: '22 11 * * *'  # Setiap hari pukul 18:22 WIB (11:22 UTC)
-    - cron: '10 12 * * *'  # Setiap hari pukul 19:10 WIB (12:10 UTC)
+    - cron: '10 14 * * *'  # Setiap hari pukul 19:10 WIB (14:10 UTC)
 
 jobs:
   autopost:
