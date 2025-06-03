@@ -1,7 +1,8 @@
 name: AutoPost Blogger
 
 on:
-  workflow_dispatch:  # Memungkinkan menjalankan workflow secara manual dari GitHub
+  schedule:
+    - cron: '22 11 * * *'  # Setiap hari pukul 18:22 WIB (11:22 UTC)
 
 jobs:
   autopost:
