@@ -120,7 +120,7 @@ async function generateReport(successCount, failedPosts, terminationReason) {
     timestamp: format(utcToZonedTime(new Date(), 'Asia/Jakarta'), 'yyyy-MM-dd HH:mm:ss'),
     terminationReason: terminationReason || 'Completed normally',
     totalPostsAttempted: successCount + failedPosts.length,
-    successfulPosts: successCount,
+    successfulDrafts: successCount, // Updated to reflect drafts
     failedPosts: failedPosts,
     postedIdsCount: (await loadPostedIds()).size,
     existingTitlesCount: (await loadJsonFile(EXISTING_TITLES_FILE, [])).length
@@ -134,7 +134,7 @@ async function generateReport(successCount, failedPosts, terminationReason) {
   const message = `📊 Job Report (${report.timestamp} WIB)\n` +
                   `Status: ${report.terminationReason}\n` +
                   `Total Attempted: ${report.totalPostsAttempted}\n` +
-                  `Successful: ${report.successfulPosts}\n` +
+                  `Successful Drafts: ${report.successfulDrafts}\n` + // Updated to reflect drafts
                   `Failed: ${report.failedPosts.length}\n` +
                   `Posted IDs: ${report.postedIdsCount}\n` +
                   `Existing Titles: ${report.existingTitlesCount}`;
@@ -210,7 +210,7 @@ function isRateLimitError(error) {
 async function postToBloggerWithRetry(postData, postedIds, existingTitles, attempt = 1) {
   try {
     if (postedIds.has(postData.title) || existingTitles.has(postData.title)) {
-      console.log('⏩ Skipping already posted:', postData.title);
+      console.log('⏩ Skipping already drafted or posted:', postData.title);
       return { skipped: true };
     }
     const res = await blogger.posts.insert({
@@ -218,13 +218,15 @@ async function postToBloggerWithRetry(postData, postedIds, existingTitles, attem
       requestBody: {
         title: postData.title,
         content: postData.content,
-        labels: postData.labels || []
+        labels: postData.labels || [],
+        isDraft: true // Set to true to save as draft instead of publishing
       }
     });
     postedIds.add(postData.title);
     existingTitles.add(postData.title);
     await savePostedIds(postedIds);
     await saveJsonFile(EXISTING_TITLES_FILE, [...existingTitles]);
+    console.log('📝 Saved as draft:', postData.title);
     return { success: true, data: res.data };
   } catch (error) {
     // Log full error for debugging
@@ -278,9 +280,9 @@ async function postToBlogger() {
 
   // Send start notification
   const startTime = format(utcToZonedTime(new Date(), 'Asia/Jakarta'), 'yyyy-MM-dd HH:mm:ss');
-  await sendWhatsAppMessage(`🚀 Starting job at ${startTime} WIB\nPosts total: ${postsData.length}\nAlready posted: ${postedIds.size}`);
+  await sendWhatsAppMessage(`🚀 Starting draft job at ${startTime} WIB\nPosts total: ${postsData.length}\nAlready drafted/posted: ${postedIds.size}`);
 
-  console.log(`Total posts: ${postsData.length}, Already posted: ${postedIds.size}, Existing titles: ${existingTitles.size}`);
+  console.log(`Total posts: ${postsData.length}, Already drafted/posted: ${postedIds.size}, Existing titles: ${existingTitles.size}`);
 
   let postCountSinceLastSave = 0;
   let dailyLimitReached = false;
@@ -294,7 +296,7 @@ async function postToBlogger() {
     try {
       const result = await limiter.schedule(() => postToBloggerWithRetry(post, postedIds, existingTitles));
       if (result.success) {
-        console.log('✅ Posted:', result.data.url);
+        console.log('✅ Drafted:', result.data.url);
       }
 
       progress.lastProcessed = i;
@@ -316,11 +318,11 @@ async function postToBlogger() {
       if (error.message.includes('DAILY_LIMIT_EXCEEDED')) {
         dailyLimitReached = true;
         console.error('🚫 DAILY LIMIT REACHED, terminating program.');
-        await sendWhatsAppMessage(`🚫 DAILY LIMIT REACHED at post ${i} (${post.title})`);
+        await sendWhatsAppMessage(`🚫 DAILY LIMIT REACHED at draft ${i} (${post.title})`);
         break;
       }
 
-      await sendWhatsAppMessage(`❌ Error posting index ${i} (${post.title}):\n${error.message}`);
+      await sendWhatsAppMessage(`❌ Error drafting index ${i} (${post.title}):\n${error.message}`);
 
       if (isRateLimitError(error)) {
         console.error('🚫 Rate limit reached, terminating program.');
@@ -346,9 +348,9 @@ async function postToBlogger() {
   }
 
   // Finalize
-  console.log('\n🎉 Processing complete!');
+  console.log('\n🎉 Drafting complete!');
   const successCount = progress.lastProcessed + 1 - progress.failed.length;
-  console.log(`✅ Success: ${successCount}`);
+  console.log(`✅ Successful drafts: ${successCount}`);
   console.log(`❌ Failed: ${progress.failed.length}`);
 
   if (progress.failed.length > 0) {
@@ -359,7 +361,7 @@ async function postToBlogger() {
   const endTime = format(utcToZonedTime(new Date(), 'Asia/Jakarta'), 'yyyy-MM-dd HH:mm:ss');
   const terminationReason = dailyLimitReached ? 'Terminated due to daily limit reached' : 'Completed normally';
   await generateReport(successCount, progress.failed, terminationReason);
-  await sendWhatsAppMessage(`🎉 Finished at ${endTime} WIB\nStatus: ${terminationReason}\n✅ Success: ${successCount}\n❌ Failed: ${progress.failed.length}`);
+  await sendWhatsAppMessage(`🎉 Drafting finished at ${endTime} WIB\nStatus: ${terminationReason}\n✅ Successful drafts: ${successCount}\n❌ Failed: ${progress.failed.length}`);
 
   process.exit(dailyLimitReached ? 2 : 0);
 }
