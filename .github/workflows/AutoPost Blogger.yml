@@ -1,11 +1,12 @@
- name: AutoPost Blogger
+name: AutoPost Blogger
+
 on:
-  schedule:
-    - cron: '0 11 * * *'  # tiap hari jam 18:00 WIB
+  workflow_dispatch:  # Memungkinkan menjalankan workflow secara manual dari GitHub
 
 jobs:
   autopost:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v3
 
