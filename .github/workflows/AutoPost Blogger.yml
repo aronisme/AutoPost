@@ -1,18 +1,6 @@
-name: AutoPost Blogger
-
-on:
-  workflow_dispatch:
-  schedule:
-    - cron: '58 9 * * *' # 🔁 Test 2 menit dari 16:55 WIB (09:57 UTC)
-    - cron: '0 17 * * *' # 00:00 WIB
-    - cron: '0 18 * * *' # 01:00 WIB
-    - cron: '0 19 * * *' # 02:00 WIB
-
-
 jobs:
   autopost:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v3
 
@@ -23,7 +11,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: Run autopost script
         env:
@@ -40,7 +28,7 @@ jobs:
           echo "✅ Job completed at $(TZ='Asia/Jakarta' date)"
 
       - name: Upload report
-        uses: actions/upload-artifact@v4 # 🔄 Versi diperbaiki
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: blogger-reports
